@@ -9,9 +9,8 @@ const SSD_PLAN_ID = 4;
 const ZONE_ID = 31002; // 石狩第2
 const SERVER_PLAN_ID_1CORE_1G = 1001;
 const SERVER_PLAN_ID_2CORE_4G = 4002;
-const SERVER_PASSWORD = randomstring.generate(12);
+const SERVER_PASSWORD = process.env.SERVER_PASSWORD || randomstring.generate(12);
 const ECCUBE_REPOSITORY = process.env.ECCUBE_REPOSITORY || 'https://github.com/EC-CUBE/ec-cube.git';
-const ECCUBE_BRANCH = process.env.ECCUBE_BRANCH || 'master';
 
 const client = sacloud.createClient({
     accessToken: process.env.SAKURACLOUD_ACCESS_TOKEN,
@@ -178,6 +177,66 @@ function getServer(serverId) {
     });
 }
 
+function execSsh(serverType, ipAddress, commands) {
+
+    const ssh = new node_ssh();
+
+    return new Promise((res, rej) => {
+        let retryCount = 3;
+        function loop() {
+            return new Promise((resolve, reject) => {
+                setTimeout(() => ssh.connect({
+                    host: ipAddress,
+                    username: 'root',
+                    password: SERVER_PASSWORD
+                }).then(function(data) {
+                    resolve(data)
+                }).catch(function(err) {
+                    reject(err);
+                }), 5000)
+            }).then(data => {
+                console.log('Connect succeed.');
+                res(data);
+            }).catch(err => {
+                if (--retryCount) {
+                    console.log(`Connect fail. retry... [${retryCount}]`);
+                    loop();
+                } else {
+                    rej(err);
+                }
+            })
+        }
+        loop();
+    }).then(function() {
+        return co(function* () {
+            for (let cmd of commands) {
+                console.log(`[${serverType}] $ ${cmd}`);
+                yield new Promise((resolve, reject) => {
+                    ssh.connection.exec(cmd, (err, stream) => {
+                        if (err) {
+                            reject(err);
+                        } else {
+                            stream.on('data', chunk => {
+                                console.log(chunk.toString().replace(/^/mg, `[${serverType}] `));
+                            });
+                            stream.stderr.on('data', chunk => {
+                                console.error(chunk.toString().replace(/^/mg, `[${serverType}] `));
+                            });
+                            stream.on('close', (code, signal) => {
+                                resolve({ code, signal })
+                            });
+                        }
+                    })
+                });
+            }
+        });
+    }).then(function() {
+        ssh.dispose();
+    }).catch(function() {
+        ssh.dispose();
+    });
+}
+
 function serverUp(serverType, serverPlan = SERVER_PLAN_ID_2CORE_4G) {
     let ts = new Date().getTime();
     let serverName = `bench-${serverType}-${ts}`;
@@ -200,65 +259,17 @@ function serverUp(serverType, serverPlan = SERVER_PLAN_ID_2CORE_4G) {
         // ディスク設定変更
         data = yield configureDisk(diskId, serverName);
 
-        // // サーバ停止
-        // data = yield stopServer(serverId);
-        // data = yield waitForServerStatus(serverId, 'down')
-
         // サーバ起動
         data = yield startServer(serverId);
         data = yield waitForServerStatus(serverId, 'up')
 
         serverIpAddress = data.response.server.interfaces[0].ipAddress;
 
-        const ssh = new node_ssh();
+        let commands = fs.readFileSync(`setup-${serverType}.sh`).toString()
+            .split('\n')
+            .filter(cmd => (cmd));
 
-        yield new Promise((res, rej) => {
-            let retryCount = 3;
-            function loop() {
-                return new Promise((resolve, reject) => {
-                    setTimeout(() => ssh.connect({
-                        host: serverIpAddress,
-                        username: 'root',
-                        password: SERVER_PASSWORD
-                    }).then(function(data) {
-                        resolve(data)
-                    }).catch(function(err) {
-                        reject(err);
-                    }), 5000)
-                }).then(data => {
-                    console.log('Connect succeed.');
-                    res(data);
-                }).catch(err => {
-                    if (--retryCount) {
-                        console.log(`Connect fail. retry... [${retryCount}]`);
-                        loop();
-                    } else {
-                        throw err;
-                    }
-                })
-            }
-            loop();
-        });
-
-        try {
-            let commands = fs.readFileSync(`setup-${serverType}.sh`).toString()
-                .replace('${ECCUBE_REPOSITORY}', ECCUBE_REPOSITORY)
-                .replace('${ECCUBE_BRANCH}', ECCUBE_BRANCH)
-                .split('\n')
-                .filter(cmd => (cmd));
-            for (let cmd of commands) {
-                console.log(`${serverType}|$ ${cmd}`);
-                let result = yield ssh.execCommand(cmd);
-                if (result.code) {
-                    throw new Error(result.stderr);
-                }
-                if (result.stdout) {
-                    console.log(result.stdout.replace(/^/mg, `${serverType}|`));
-                }
-            }
-        } finally {
-            ssh.dispose();
-        }
+        yield execSsh(serverType, serverIpAddress, commands)
 
         return { id: serverId, name:serverName, ipAddress:serverIpAddress };
     };
@@ -286,13 +297,21 @@ co(function* () {
             username: 'root',
             password: SERVER_PASSWORD
         });
-        let total = 0, count = 5;
-        for (let i=0; i<count; i++) {
-            let output = yield ssh.execCommand(`ab -n 100 -c 10 http://${cubeServer.ipAddress}/ec-cube/html/`)
-            console.log(output.stdout);
-            total += parseFloat(output.stdout.match(/^Requests per second: +([0-9.]+).*$/m)[1])
+
+        let results = new Map();
+        for (let branch of ['3.0.13', '3.0.14', 'master']) {
+            yield execSsh('cube-php', cubeServer.ipAddress, [`(cd /var/www/html; git clone --depth=1 -b ${branch} ${ECCUBE_REPOSITORY} ec-cube-${branch}; cd ec-cube-${branch}; export ROOT_URLPATH=/ec-cube-${branch}/html; php eccube_install.php pgsql; chown -R apache: /var/www/html/ec-cube-${branch};)`]);
+
+            let total = 0, count = 5;
+            for (let i=0; i<count; i++) {
+                output = yield ssh.execCommand(`ab -n 100 -c 10 http://${cubeServer.ipAddress}/ec-cube-${branch}/html/`)
+                console.log(output.stdout);
+                total += parseFloat(output.stdout.match(/^Requests per second: +([0-9.]+).*$/m)[1])
+            }
+            results.set(branch, (total / count).toFixed(2));
         }
-        console.log(`##### Average ${(total / count).toFixed(2)} [#/sec] #####`);
+        results.forEach((rps, branch) => console.log(`##### ${branch} ${rps} [#/sec] #####`));
+
     } finally {
         ssh.dispose();
         yield [
