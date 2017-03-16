@@ -300,17 +300,25 @@ co(function* () {
 
         let results = new Map();
         for (let branch of ['3.0.13', '3.0.14', 'master']) {
-            yield execSsh('cube-php', cubeServer.ipAddress, [`(cd /var/www/html; git clone --depth=1 -b ${branch} ${ECCUBE_REPOSITORY} ec-cube-${branch}; cd ec-cube-${branch}; export ROOT_URLPATH=/ec-cube-${branch}/html; php eccube_install.php pgsql; chown -R apache: /var/www/html/ec-cube-${branch};)`]);
+            yield execSsh('cube-php', cubeServer.ipAddress, [
+                `(cd /var/www/html; git clone --depth=1 -b ${branch} ${ECCUBE_REPOSITORY} ec-cube-${branch}; cd ec-cube-${branch}; export ROOT_URLPATH=/ec-cube-${branch}/html; php eccube_install.php pgsql; chown -R apache: /var/www/html/ec-cube-${branch};)`,
+                'systemctl restart httpd'
+            ]);
 
-            let total = 0, count = 5;
+            let count = 5;
             for (let i=0; i<count; i++) {
                 output = yield ssh.execCommand(`ab -n 100 -c 10 http://${cubeServer.ipAddress}/ec-cube-${branch}/html/`)
                 console.log(output.stdout);
-                total += parseFloat(output.stdout.match(/^Requests per second: +([0-9.]+).*$/m)[1])
+                if (!results.has(branch)) {
+                    results.set(branch, []);
+                }
+                results.get(branch).push(parseFloat(output.stdout.match(/^Requests per second: +([0-9.]+).*$/m)[1]))
             }
-            results.set(branch, (total / count).toFixed(2));
         }
-        results.forEach((rps, branch) => console.log(`##### ${branch} ${rps} [#/sec] #####`));
+        results.forEach((results, branch) => {
+            results.shift();
+            console.log(`##### ${branch} ${(results.reduce((acc, val) => acc += val) / results.length).toFixed(2)} [#/sec] #####`)
+        });
 
     } finally {
         ssh.dispose();
