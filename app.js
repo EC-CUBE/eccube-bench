@@ -283,8 +283,14 @@ function serverDown(serverId) {
     }
 }
 
+function toFixed(num, length) {
+    let n = Math.pow(10, length);
+    return Math.round(num * n) / n;
+}
+
 co(function* () {
 
+    // サーバセットアップ
     let [abServer, cubeServer] = yield [
         co(serverUp('cube-ab')),
         co(serverUp('cube-php', SERVER_PLAN_ID_1CORE_1G))
@@ -300,25 +306,36 @@ co(function* () {
 
         let results = new Map();
         for (let branch of ['3.0.13', '3.0.14', 'master']) {
+
+            // EC-CUBEインストール
             yield execSsh('cube-php', cubeServer.ipAddress, [
                 `(cd /var/www/html; git clone --depth=1 -b ${branch} ${ECCUBE_REPOSITORY} ec-cube-${branch}; cd ec-cube-${branch}; export ROOT_URLPATH=/ec-cube-${branch}/html; php eccube_install.php pgsql; chown -R apache: /var/www/html/ec-cube-${branch};)`,
                 'systemctl restart httpd'
             ]);
 
+            // ウォームアップ
+            yield ssh.execCommand(`ab -n 10 -c 1 http://${cubeServer.ipAddress}/ec-cube-${branch}/html/`);
+
+            // 5回測定
             let count = 5;
             for (let i=0; i<count; i++) {
                 output = yield ssh.execCommand(`ab -n 100 -c 10 http://${cubeServer.ipAddress}/ec-cube-${branch}/html/`)
                 console.log(output.stdout);
                 if (!results.has(branch)) {
-                    results.set(branch, []);
+                    results.set(branch, { results: [] });
                 }
-                results.get(branch).push(parseFloat(output.stdout.match(/^Requests per second: +([0-9.]+).*$/m)[1]))
+                results.get(branch).results.push(parseFloat(output.stdout.match(/^Requests per second: +([0-9.]+).*$/m)[1]))
             }
         }
-        results.forEach((results, branch) => {
-            results.shift();
-            console.log(`##### ${branch} ${(results.reduce((acc, val) => acc += val) / results.length).toFixed(2)} [#/sec] #####`)
+
+        // 結果表示
+        console.log('#######################################################################');
+        results.forEach((data, branch) => {
+            data.mean = toFixed(data.results.reduce((acc, val) => acc += val, 0) / data.results.length, 2);
+            data.sd = toFixed(Math.sqrt(data.results.reduce((acc, val) => acc += Math.pow(val - data.mean, 2), 0) / data.results.length), 2);
+            console.log(`[${branch}] mean: ${data.mean} [#/ms], standard deviation: ${data.sd} [#/ms], results: ${data.results}`);
         });
+        console.log('#######################################################################');
 
     } finally {
         ssh.dispose();
