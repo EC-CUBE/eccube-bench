@@ -343,7 +343,7 @@ co(function* () {
         results.forEach((data, branch) => {
             data.mean = toFixed(data.results.reduce((acc, val) => acc += val, 0) / data.results.length, 2);
             data.sd = toFixed(Math.sqrt(data.results.reduce((acc, val) => acc += Math.pow(val - data.mean, 2), 0) / data.results.length), 2);
-            console.log(`[${branch}] mean: ${data.mean} [#/ms], standard deviation: ${data.sd} [#/ms], results: ${data.results}`);
+            console.log(`[${branch}] mean: ${data.mean.toFixed(2)} [#/ms], standard deviation: ${data.sd.toFixed(2)} [#/ms], results: ${data.results}`);
         });
         console.log('#######################################################################');
 
