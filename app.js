@@ -245,39 +245,49 @@ function serverUp(serverType, serverPlan = SERVER_PLAN_ID_2CORE_4G) {
 
         let serverId, diskId, data, serverIpAddress;
 
-        // サーバ作成
-        data = yield createServer(serverName, serverPlan);
-        serverId = data.response.server.id;
+        try {
+            // サーバ作成
+            data = yield createServer(serverName, serverPlan);
+            serverId = data.response.server.id;
 
-        // ディスク作成
-        data = yield createDisk(serverId, serverName);
-        diskId = data.response.disk.id;
+            // ディスク作成
+            data = yield createDisk(serverId, serverName);
+            diskId = data.response.disk.id;
 
-        // ディスク準備完了待ち
-        data = yield waitForDiskAvailable(diskId);
+            // ディスク準備完了待ち
+            data = yield waitForDiskAvailable(diskId);
 
-        // ディスク設定変更
-        data = yield configureDisk(diskId, serverName);
+            // ディスク設定変更
+            data = yield configureDisk(diskId, serverName);
 
-        // サーバ起動
-        data = yield startServer(serverId);
-        data = yield waitForServerStatus(serverId, 'up')
+            // サーバ起動
+            data = yield startServer(serverId);
+            data = yield waitForServerStatus(serverId, 'up')
 
-        serverIpAddress = data.response.server.interfaces[0].ipAddress;
+            serverIpAddress = data.response.server.interfaces[0].ipAddress;
 
-        let commands = fs.readFileSync(`setup-${serverType}.sh`).toString()
-            .split('\n')
-            .filter(cmd => (cmd));
+            let commands = fs.readFileSync(`setup-${serverType}.sh`).toString()
+                .split('\n')
+                .filter(cmd => (cmd));
 
-        yield execSsh(serverType, serverIpAddress, commands)
+            yield execSsh(serverType, serverIpAddress, commands)
 
-        return { id: serverId, name:serverName, ipAddress:serverIpAddress };
+            return { id: serverId, name:serverName, ipAddress:serverIpAddress };
+
+        } catch (e) {
+            if (serverId) {
+                yield co(serverDown(serverId));
+            }
+            throw e;
+        }
     };
 }
 
 function serverDown(serverId) {
     return function* () {
-        yield stopServer(serverId);
+        try {
+            yield stopServer(serverId);
+        } catch (ignore) {}
         yield waitForServerStatus(serverId, 'down');
         yield removeServer(serverId);
     }
@@ -344,4 +354,7 @@ co(function* () {
             co(serverDown(cubeServer.id))
         ];
     }
+}).catch(err => {
+    console.log(err);
+    process.exit(1);
 });
