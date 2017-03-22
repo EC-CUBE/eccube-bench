@@ -64,7 +64,7 @@ function removeServer(serverId) {
         body: {
             WithDisk: data.response.server.disks.map(function(disk) { return disk.id })
         }
-    }));
+    }).then(data => console.log(`Server removed: ${serverId}`)));
 }
 
 function createDisk(serverId, serverName) {
