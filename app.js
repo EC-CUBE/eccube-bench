@@ -371,8 +371,13 @@ co(function* () {
         console.log('#######################################################################');
         results.forEach((data, branch) => {
             data.mean = toFixed(data.results.reduce((acc, val) => acc += val, 0) / data.results.length, 2);
+            data.median = ((l) => {
+                l.sort((l,r) => l - r);
+                let i = Math.round(l.length / 2) - 1;
+                return l.length % 2 ? l[i] : (l[i] + l[i+1]) / 2
+            })([...data.results]);
             data.sd = toFixed(Math.sqrt(data.results.reduce((acc, val) => acc += Math.pow(val - data.mean, 2), 0) / data.results.length), 2);
-            console.log(`[${branch}] mean: ${data.mean.toFixed(2)} [#/ms], standard deviation: ${data.sd.toFixed(2)} [#/ms], results: ${data.results}`);
+            console.log(`[${branch}] mean: ${data.mean.toFixed(2)} [#/ms], median: ${data.median.toFixed(2)} [#/ms], sd: ${data.sd.toFixed(2)} [#/ms], results: ${data.results}`);
         });
         console.log('#######################################################################');
 
