@@ -32,7 +32,32 @@ function callAPI(request) {
     }));
 }
 
-function createServer(serverName, serverPlan) {
+function createSwitch() {
+    return callAPI({
+        method: 'POST',
+        path: `/switch`,
+        body: {
+            Switch: {
+                Name: "bench-cube-switch-" + new Date().getTime()
+            }
+        }
+    }).then(function(data) {
+        console.log(`Switch created: ${data.response.switch.id}`);
+        return { id: data.response.switch.id };
+    });
+}
+
+function removeSwitch(sw) {
+    return callAPI({
+        method: 'DELETE',
+        path: `/switch/${sw.id}`
+    }).then(function(data) {
+        console.log(`Switch removed: ${sw.id}`);
+        return data;
+    });
+}
+
+function createServer(serverName, serverPlan, sw) {
     return callAPI({
         method : 'POST',
         path : 'server',
@@ -47,7 +72,8 @@ function createServer(serverName, serverPlan) {
                         BandWidthMbps: 100,
                         Scope: 'shared',
                         _operation: 'internet'
-                    }
+                    },
+                    { ID : sw.id }
                 ]
             }
         }
@@ -237,7 +263,7 @@ function execSsh(serverType, ipAddress, commands) {
     });
 }
 
-function serverUp(serverType, serverPlan = SERVER_PLAN_ID_2CORE_4G) {
+function serverUp(serverType, serverPlan, sw) {
     let ts = new Date().getTime();
     let serverName = `bench-${serverType}-${ts}`;
 
@@ -247,7 +273,7 @@ function serverUp(serverType, serverPlan = SERVER_PLAN_ID_2CORE_4G) {
 
         try {
             // サーバ作成
-            data = yield createServer(serverName, serverPlan);
+            data = yield createServer(serverName, serverPlan, sw);
             serverId = data.response.server.id;
 
             // ディスク作成
@@ -300,10 +326,13 @@ function toFixed(num, length) {
 
 co(function* () {
 
+    // スイッチ作成
+    let sw = yield createSwitch();
+
     // サーバセットアップ
     let [abServer, cubeServer] = yield [
-        co(serverUp('cube-ab')),
-        co(serverUp('cube-php', SERVER_PLAN_ID_1CORE_1G))
+        co(serverUp('cube-ab', SERVER_PLAN_ID_2CORE_4G, sw)),
+        co(serverUp('cube-php', SERVER_PLAN_ID_1CORE_1G, sw))
     ];
 
     let ssh = new node_ssh();
@@ -324,12 +353,12 @@ co(function* () {
             ]);
 
             // ウォームアップ
-            yield ssh.execCommand(`ab -n 10 -c 1 http://${cubeServer.ipAddress}/ec-cube-${branch}/html/`);
+            yield ssh.execCommand(`ab -n 10 -c 1 http://192.168.0.2/ec-cube-${branch}/html/`);
 
             // 5回測定
             let count = 5;
             for (let i=0; i<count; i++) {
-                output = yield ssh.execCommand(`ab -n 100 -c 10 http://${cubeServer.ipAddress}/ec-cube-${branch}/html/`)
+                output = yield ssh.execCommand(`ab -n 100 -c 10 http://192.168.0.2/ec-cube-${branch}/html/`)
                 console.log(output.stdout);
                 if (!results.has(branch)) {
                     results.set(branch, { results: [] });
@@ -342,8 +371,13 @@ co(function* () {
         console.log('#######################################################################');
         results.forEach((data, branch) => {
             data.mean = toFixed(data.results.reduce((acc, val) => acc += val, 0) / data.results.length, 2);
+            data.median = ((l) => {
+                l.sort((l,r) => l - r);
+                let i = Math.round(l.length / 2) - 1;
+                return l.length % 2 ? l[i] : (l[i] + l[i+1]) / 2
+            })([...data.results]);
             data.sd = toFixed(Math.sqrt(data.results.reduce((acc, val) => acc += Math.pow(val - data.mean, 2), 0) / data.results.length), 2);
-            console.log(`[${branch}] mean: ${data.mean.toFixed(2)} [#/ms], standard deviation: ${data.sd.toFixed(2)} [#/ms], results: ${data.results}`);
+            console.log(`[${branch}] mean: ${data.mean.toFixed(2)} [#/ms], median: ${data.median.toFixed(2)} [#/ms], sd: ${data.sd.toFixed(2)} [#/ms], results: ${data.results}`);
         });
         console.log('#######################################################################');
 
@@ -353,6 +387,7 @@ co(function* () {
             co(serverDown(abServer.id)),
             co(serverDown(cubeServer.id))
         ];
+        yield removeSwitch(sw);
     }
 }).catch(err => {
     console.log(err);
