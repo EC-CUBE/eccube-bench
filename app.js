@@ -1,3 +1,4 @@
+"use strict";
 const sacloud = require('sacloud');
 const node_ssh = require('node-ssh');
 const co = require('co');
@@ -358,7 +359,7 @@ co(function* () {
             // 5回測定
             let count = 5;
             for (let i=0; i<count; i++) {
-                output = yield ssh.execCommand(`ab -n 100 -c 10 http://192.168.0.2/ec-cube-${branch}/html/`)
+                let output = yield ssh.execCommand(`ab -n 100 -c 10 http://192.168.0.2/ec-cube-${branch}/html/`)
                 console.log(output.stdout);
                 if (!results.has(branch)) {
                     results.set(branch, { results: [] });
