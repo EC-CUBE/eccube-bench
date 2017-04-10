@@ -26,6 +26,7 @@ const client = sacloud.createClient({
 function callAPI(request) {
     return new Promise((resolve, reject) => client.createRequest(request).send((err, result) => {
         if (err) {
+            console.error('Error', request);
             reject(err);
             return;
         }
@@ -310,13 +311,21 @@ function serverUp(serverType, serverPlan, sw) {
     };
 }
 
-function serverDown(serverId) {
+function wait(seconds) {
+    return new Promise((res, rej) => {
+        setTimeout(res, seconds * 1000);
+    })
+}
+
+function serverDown(...serverIdList) {
     return function* () {
         try {
-            yield stopServer(serverId);
+            yield serverIdList.map(serverId => stopServer(serverId));
         } catch (ignore) {}
-        yield waitForServerStatus(serverId, 'down');
-        yield removeServer(serverId);
+        yield serverIdList.map(serverId => waitForServerStatus(serverId, 'down'));
+        for (let serverId of serverIdList) {
+            yield removeServer(serverId);
+        }
     }
 }
 
@@ -384,10 +393,7 @@ co(function* () {
 
     } finally {
         ssh.dispose();
-        yield [
-            co(serverDown(abServer.id)),
-            co(serverDown(cubeServer.id))
-        ];
+        yield co(serverDown(abServer.id, cubeServer.id));
         yield removeSwitch(sw);
     }
 }).catch(err => {
