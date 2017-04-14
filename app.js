@@ -5,7 +5,7 @@ const co = require('co');
 const fs = require('fs');
 const randomstring = require('randomstring');
 
-const ARCHIVE_ID_CENTOS_7_2_64 = '112801122159'
+const ARCHIVE_ID_CENTOS_7_3_64 = '112900084256'
 const SSD_PLAN_ID = 4;
 const ZONE_ID = 31002; // 石狩第2
 const SERVER_PLAN_ID_1CORE_1G = 1001;
@@ -26,7 +26,7 @@ const client = sacloud.createClient({
 function callAPI(request) {
     return new Promise((resolve, reject) => client.createRequest(request).send((err, result) => {
         if (err) {
-            console.error('Error', request);
+            console.error('Error', JSON.stringify(request, null, '    '));
             reject(err);
             return;
         }
@@ -108,7 +108,7 @@ function createDisk(serverId, serverName) {
                 Connection: 'virtio',
                 SizeMB: 20480,
                 SourceArchive: {
-                    ID: ARCHIVE_ID_CENTOS_7_2_64
+                    ID: ARCHIVE_ID_CENTOS_7_3_64
                 },
                 Plan: { ID: SSD_PLAN_ID }
             }
