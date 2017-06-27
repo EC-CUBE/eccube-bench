@@ -12,6 +12,7 @@ const SERVER_PLAN_ID_1CORE_1G = 1001;
 const SERVER_PLAN_ID_2CORE_4G = 4002;
 const SERVER_PASSWORD = process.env.SERVER_PASSWORD || randomstring.generate(12);
 const ECCUBE_REPOSITORY = process.env.ECCUBE_REPOSITORY || 'https://github.com/EC-CUBE/ec-cube.git';
+const ECCUBE_VERSIONS = ['3.0.13', '3.0.14', '3.0.15', 'master'];
 
 const client = sacloud.createClient({
     accessToken: process.env.SAKURACLOUD_ACCESS_TOKEN,
@@ -245,10 +246,14 @@ function execSsh(serverType, ipAddress, commands) {
                             reject(err);
                         } else {
                             stream.on('data', chunk => {
-                                console.log(chunk.toString().replace(/^/mg, `[${serverType}] `));
+                                chunk.toString().trim().split(/\r?\n/)
+                                    .filter(line => line)
+                                    .forEach(line => console.log(`[${serverType}] ${line}`))
                             });
                             stream.stderr.on('data', chunk => {
-                                console.error(chunk.toString().replace(/^/mg, `[${serverType}] `));
+                                chunk.toString().trim().split(/\r?\n/)
+                                    .filter(line => line)
+                                    .forEach(line => console.error(`[${serverType}] ${line}`))
                             });
                             stream.on('close', (code, signal) => {
                                 resolve({ code, signal })
@@ -354,7 +359,7 @@ co(function* () {
         });
 
         let results = new Map();
-        for (let branch of ['3.0.13', '3.0.14', 'master']) {
+        for (let branch of ECCUBE_VERSIONS) {
 
             // EC-CUBEインストール
             yield execSsh('cube-php', cubeServer.ipAddress, [
@@ -381,7 +386,7 @@ co(function* () {
         console.log('#######################################################################');
         results.forEach((data, branch) => {
             data.mean = toFixed(data.results.reduce((acc, val) => acc += val, 0) / data.results.length, 2);
-            data.median = ((l) => {
+            data.median = (l => {
                 l.sort((l,r) => l - r);
                 let i = Math.round(l.length / 2) - 1;
                 return l.length % 2 ? l[i] : (l[i] + l[i+1]) / 2
