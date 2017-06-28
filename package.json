@@ -4,6 +4,7 @@
   "description": "",
   "main": "app.js",
   "dependencies": {
+    "@slack/client": "^3.10.0",
     "co": "^4.6.0",
     "node-ssh": "^4.0.1",
     "randomstring": "^1.1.5",
