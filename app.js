@@ -4,6 +4,7 @@ const node_ssh = require('node-ssh');
 const co = require('co');
 const fs = require('fs');
 const randomstring = require('randomstring');
+const SlackClient = require('@slack/client').WebClient;
 
 const ARCHIVE_ID_CENTOS_7_3_64 = '112900084256'
 const SSD_PLAN_ID = 4;
@@ -12,7 +13,8 @@ const SERVER_PLAN_ID_1CORE_1G = 1001;
 const SERVER_PLAN_ID_2CORE_4G = 4002;
 const SERVER_PASSWORD = process.env.SERVER_PASSWORD || randomstring.generate(12);
 const ECCUBE_REPOSITORY = process.env.ECCUBE_REPOSITORY || 'https://github.com/EC-CUBE/ec-cube.git';
-const ECCUBE_VERSIONS = ['3.0.13', '3.0.14', '3.0.15', 'master'];
+const SLACK_API_TOKEN = process.env.SLACK_API_TOKEN;
+const ECCUBE_VERSIONS = ['3.0.13', '3.0.14', '3.0.15', 'master'].reverse();
 
 const client = sacloud.createClient({
     accessToken: process.env.SAKURACLOUD_ACCESS_TOKEN,
@@ -20,6 +22,7 @@ const client = sacloud.createClient({
     disableLocalizeKeys: false,
     debug: false
 });
+
 
 /**
  * さくらのクラウドAPI呼び出し
@@ -339,6 +342,13 @@ function toFixed(num, length) {
     return Math.round(num * n) / n;
 }
 
+function postToSlack(channel, message, opts) {
+    if (SLACK_API_TOKEN) {
+        let web = new SlackClient(SLACK_API_TOKEN);
+        web.chat.postMessage(channel, message, opts);
+    }
+}
+
 co(function* () {
 
     // スイッチ作成
@@ -372,18 +382,23 @@ co(function* () {
 
             // 5回測定
             let count = 5;
-            for (let i=0; i<count; i++) {
+            for (let i=0; i<count;) {
                 let output = yield ssh.execCommand(`ab -n 100 -c 10 http://192.168.0.2/ec-cube-${branch}/html/`)
                 console.log(output.stdout);
+                // ERROR/WARNINGの場合はやり直す
+                if (output.stdout.match(/^(ERROR|WARNING): /)) {
+                    continue;
+                }
                 if (!results.has(branch)) {
                     results.set(branch, { results: [] });
                 }
-                results.get(branch).results.push(parseFloat(output.stdout.match(/^Requests per second: +([0-9.]+).*$/m)[1]))
+                results.get(branch).results.push(parseFloat(output.stdout.match(/^Requests per second: +([0-9.]+).*$/m)[1]));
+                i++;
             }
         }
 
         // 結果表示
-        console.log('#######################################################################');
+        let outputText = '';
         results.forEach((data, branch) => {
             data.mean = toFixed(data.results.reduce((acc, val) => acc += val, 0) / data.results.length, 2);
             data.median = (l => {
@@ -392,9 +407,12 @@ co(function* () {
                 return l.length % 2 ? l[i] : (l[i] + l[i+1]) / 2
             })([...data.results]);
             data.sd = toFixed(Math.sqrt(data.results.reduce((acc, val) => acc += Math.pow(val - data.mean, 2), 0) / data.results.length), 2);
-            console.log(`[${branch}] mean: ${data.mean.toFixed(2)} [#/ms], median: ${data.median.toFixed(2)} [#/ms], sd: ${data.sd.toFixed(2)} [#/ms], results: ${data.results}`);
+            outputText += `[${branch}] mean: ${data.mean.toFixed(2)} [#/ms], median: ${data.median.toFixed(2)} [#/ms], sd: ${data.sd.toFixed(2)} [#/ms], results: ${data.results}\n`
         });
         console.log('#######################################################################');
+        console.log(outputText);
+        console.log('#######################################################################');
+        postToSlack('ec-cube', outputText, {username:'ベンチマーク結果'});
 
     } finally {
         ssh.dispose();
