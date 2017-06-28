@@ -14,6 +14,7 @@ const SERVER_PLAN_ID_2CORE_4G = 4002;
 const SERVER_PASSWORD = process.env.SERVER_PASSWORD || randomstring.generate(12);
 const ECCUBE_REPOSITORY = process.env.ECCUBE_REPOSITORY || 'https://github.com/EC-CUBE/ec-cube.git';
 const SLACK_API_TOKEN = process.env.SLACK_API_TOKEN;
+const SLACK_CHANNEL = process.env.SLACK_CHANNEL;
 const ECCUBE_VERSIONS = ['3.0.13', '3.0.14', '3.0.15', 'master'].reverse();
 
 const client = sacloud.createClient({
@@ -412,7 +413,7 @@ co(function* () {
         console.log('#######################################################################');
         console.log(outputText);
         console.log('#######################################################################');
-        postToSlack('ec-cube', outputText, {username:'ベンチマーク結果'});
+        postToSlack(SLACK_CHANNEL, outputText, {username:'本日のベンチマーク結果'});
 
     } finally {
         ssh.dispose();
