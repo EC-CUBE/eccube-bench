@@ -387,7 +387,7 @@ co(function* () {
                 let output = yield ssh.execCommand(`ab -n 100 -c 10 http://192.168.0.2/ec-cube-${branch}/html/`)
                 console.log(output.stdout);
                 // ERROR/WARNINGの場合はやり直す
-                if (output.stdout.match(/^(ERROR|WARNING): /)) {
+                if (output.stdout.match(/^(ERROR|WARNING): /m)) {
                     continue;
                 }
                 if (!results.has(branch)) {
