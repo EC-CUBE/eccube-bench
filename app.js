@@ -15,7 +15,7 @@ const SERVER_PASSWORD = process.env.SERVER_PASSWORD || randomstring.generate(12)
 const ECCUBE_REPOSITORY = process.env.ECCUBE_REPOSITORY || 'https://github.com/EC-CUBE/ec-cube.git';
 const SLACK_API_TOKEN = process.env.SLACK_API_TOKEN;
 const SLACK_CHANNEL = process.env.SLACK_CHANNEL;
-const ECCUBE_VERSIONS = ['3.0.13', '3.0.14', '3.0.15', 'master'].reverse();
+const ECCUBE_VERSIONS = ['3.0.13', '3.0.14', '3.0.15', 'master', { name: '3.n', branch: 'experimental/3.1', path: '/'}].reverse();
 
 const client = sacloud.createClient({
     accessToken: process.env.SAKURACLOUD_ACCESS_TOKEN,
@@ -373,30 +373,32 @@ co(function* () {
         });
 
         let results = new Map();
-        for (let branch of ECCUBE_VERSIONS) {
+        for (let version of ECCUBE_VERSIONS) {
+
+            version = typeof version === 'object' ? version : { name: version, branch: version, path: '/html/' };
 
             // EC-CUBEインストール
             yield execSsh('cube-php', cubeServer.ipAddress, [
-                `(cd /var/www/html; git clone --depth=1 -b ${branch} ${ECCUBE_REPOSITORY} ec-cube-${branch}; cd ec-cube-${branch}; export ROOT_URLPATH=/ec-cube-${branch}/html; php eccube_install.php pgsql; chown -R apache: /var/www/html/ec-cube-${branch};)`,
+                `(cd /var/www/html; git clone --depth=1 -b ${version.branch} ${ECCUBE_REPOSITORY} ec-cube-${version.name}; cd ec-cube-${version.name}; export ROOT_URLPATH=/ec-cube-${version.name}${version.path}; php eccube_install.php pgsql; chown -R apache: /var/www/html/ec-cube-${version.name};)`,
                 'systemctl restart httpd'
             ]);
 
             // ウォームアップ
-            yield ssh.execCommand(`ab -n 10 -c 1 http://192.168.0.2/ec-cube-${branch}/html/`);
+            yield ssh.execCommand(`ab -n 10 -c 1 http://192.168.0.2/ec-cube-${version.name}${version.path}`);
 
             // 5回測定
             let count = 5;
             for (let i=0; i<count;) {
-                let output = yield ssh.execCommand(`ab -n 100 -c 10 http://192.168.0.2/ec-cube-${branch}/html/`)
+                let output = yield ssh.execCommand(`ab -n 100 -c 10 http://192.168.0.2/ec-cube-${version.name}${version.path}`)
                 console.log(output.stdout);
                 // ERROR/WARNINGの場合はやり直す
                 if (output.stdout.match(/^(ERROR|WARNING): /m)) {
                     continue;
                 }
-                if (!results.has(branch)) {
-                    results.set(branch, { results: [] });
+                if (!results.has(version.name)) {
+                    results.set(version.name, { results: [] });
                 }
-                results.get(branch).results.push(parseFloat(output.stdout.match(/^Requests per second: +([0-9.]+).*$/m)[1]));
+                results.get(version.name).results.push(parseFloat(output.stdout.match(/^Requests per second: +([0-9.]+).*$/m)[1]));
                 i++;
             }
         }
