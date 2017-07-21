@@ -45,7 +45,8 @@ function createSwitch() {
         path: `/switch`,
         body: {
             Switch: {
-                Name: "bench-cube-switch-" + new Date().getTime()
+                Name: `bench-cube-switch-${Date.now()}`,
+                Description: `EC-CUBEベンチマーク用スイッチ ${new Date(Date.now() + 3600000).toLocaleString('ja', {timeZone:'Asia/Tokyo'})}以降削除可`
             }
         }
     }).then(function(data) {
@@ -73,6 +74,7 @@ function createServer(serverName, serverPlan, sw) {
                 Zone : { ID: ZONE_ID },
                 ServerPlan : { ID: serverPlan },
                 Name : serverName,
+                Description: `EC-CUBEベンチマーク用サーバ ${new Date(Date.now() + 3600000).toLocaleString('ja', {timeZone:'Asia/Tokyo'})}以降削除可`,
                 ConnectedSwitches: [
                     {
                         virtio: true,
@@ -110,6 +112,7 @@ function createDisk(serverId, serverName) {
                     ID: serverId
                 },
                 Name: serverName,
+                Description: `EC-CUBEベンチマーク用サーバのディスク ${new Date(Date.now() + 3600000).toLocaleString('ja', {timeZone:'Asia/Tokyo'})}以降削除可`,
                 Connection: 'virtio',
                 SizeMB: 20480,
                 SourceArchive: {
