@@ -416,7 +416,10 @@ co(function* () {
         console.log('#######################################################################');
         console.log(outputText);
         console.log('#######################################################################');
-        postToSlack(SLACK_CHANNEL, outputText, {username:'本日のベンチマーク結果'});
+        let chd = 't:0|' + [...results.values()].map((d) => d.mean).join('|');
+        let chdl = ' |' + [...results.keys()].join('|');
+        let imgUrl = encodeURI(`https://image-charts.com/chart?cht=bhg&chs=400x150&chco=FFFFFF,F56991,FF9F80,FFC48C,D1F2A5,EFFAB4&chd=${chd}&chdl=${chdl}`);
+        postToSlack(SLACK_CHANNEL, '```' + outputText + '```', {username:'本日のベンチマーク結果', attachments:[{fallback:outputText,image_url:imgUrl}]});
 
     } finally {
         ssh.dispose();
