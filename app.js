@@ -379,7 +379,7 @@ co(function* () {
 
             // EC-CUBEインストール
             yield execSsh('cube-php', cubeServer.ipAddress, [
-                `(cd /var/www/html; git clone --depth=1 -b ${version.branch} ${ECCUBE_REPOSITORY} ec-cube-${version.name}; cd ec-cube-${version.name}; export ROOT_URLPATH=/ec-cube-${version.name}${version.path}; php eccube_install.php pgsql; chown -R apache: /var/www/html/ec-cube-${version.name};)`,
+                `(cd /var/www/html; git clone --depth=1 -b ${version.branch} ${ECCUBE_REPOSITORY} ec-cube-${version.name}; cd ec-cube-${version.name}; export ROOT_URLPATH=/ec-cube-${version.name}${version.path}; export ECCUBE_ROOT_URLPATH=/ec-cube-${version.name}${version.path}; export ECCUBE_DB_DATABASE=cube3_dev; export ECCUBE_DB_USERNAME=postgres; php eccube_install.php pgsql; chown -R apache: /var/www/html/ec-cube-${version.name};)`,
                 'systemctl restart httpd'
             ]);
 
