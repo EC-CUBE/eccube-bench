@@ -6,7 +6,7 @@ const fs = require('fs');
 const randomstring = require('randomstring');
 const SlackClient = require('@slack/client').WebClient;
 
-const ARCHIVE_ID_CENTOS_7_3_64 = '112900084256'
+const ARCHIVE_ID_CENTOS_7_4_64 = '112901258216'
 const SSD_PLAN_ID = 4;
 const ZONE_ID = 31002; // 石狩第2
 const SERVER_PLAN_ID_1CORE_1G = 1001;
@@ -116,7 +116,7 @@ function createDisk(serverId, serverName) {
                 Connection: 'virtio',
                 SizeMB: 20480,
                 SourceArchive: {
-                    ID: ARCHIVE_ID_CENTOS_7_3_64
+                    ID: ARCHIVE_ID_CENTOS_7_4_64
                 },
                 Plan: { ID: SSD_PLAN_ID }
             }
@@ -354,6 +354,16 @@ function postToSlack(channel, message, opts) {
 }
 
 co(function* () {
+
+    let archives = yield callAPI({
+        'method': 'GET',
+        'path': 'archive'
+    })
+
+    let found = archives.response.archives.filter(data => { return data.id == ARCHIVE_ID_CENTOS_7_4_64; });
+    if (!found.length) {
+        throw new Error(`Archive ID not found.`);
+    }
 
     // スイッチ作成
     let sw = yield createSwitch();
