@@ -15,7 +15,11 @@ const SERVER_PASSWORD = process.env.SERVER_PASSWORD || randomstring.generate(12)
 const ECCUBE_REPOSITORY = process.env.ECCUBE_REPOSITORY || 'https://github.com/EC-CUBE/ec-cube.git';
 const SLACK_API_TOKEN = process.env.SLACK_API_TOKEN;
 const SLACK_CHANNEL = process.env.SLACK_CHANNEL;
-const ECCUBE_VERSIONS = ['3.0.13', '3.0.14', '3.0.15', 'master'].reverse();
+const ECCUBE_VERSIONS = [
+    '3.0.15', '3.0.16', 'master',
+    { name: '3.n-alpha5', branch: '3.n-alpha5', path: '/', symfony:true},
+    { name: 'sf', branch: 'experimental/sf', path: '/', symfony:true}
+].reverse();
 
 const client = sacloud.createClient({
     accessToken: process.env.SAKURACLOUD_ACCESS_TOKEN,
@@ -383,30 +387,60 @@ co(function* () {
         });
 
         let results = new Map();
-        for (let branch of ECCUBE_VERSIONS) {
+        for (let version of ECCUBE_VERSIONS) {
+
+            version = typeof version === 'object' ? version : { name: version, branch: version, path: '/html/', symfony: false };
+            version.dbName = `eccube_${version.name.replace(/[-.]/g, '_')}`;
+            let installScrpt = `
+                    cd /var/www/html
+                    git clone --depth=1 -b ${version.branch} ${ECCUBE_REPOSITORY} ec-cube-${version.name}
+                    cd ec-cube-${version.name}
+                    psql -U postgres -c "CREATE DATABASE ${version.dbName} WITH OWNER cube3_dev_user;"
+                ` + (version.symfony ?
+                `
+                    echo APP_ENV=prod > .env
+                    echo APP_DEBUG=0 >> .env
+                    echo ECCUBE_ROOT_URLPATH=/ec-cube-${version.name}${version.path} >> .env
+                    echo DATABASE_URL=pgsql://postgres:password@127.0.0.1:5432/${version.dbName} >> .env
+                    composer install --dev --no-interaction -o
+                    bin/console d:s:d --force
+                    bin/console d:s:c
+                    bin/console e:f:l
+                    chown -R apache: /var/www/html/ec-cube-${version.name}
+                ` :
+                `
+                    export ROOT_URLPATH=/ec-cube-${version.name}${version.path}
+                    export ECCUBE_ROOT_URLPATH=/ec-cube-${version.name}${version.path}
+                    export DBNAME=${version.dbName}
+                    export ECCUBE_DB_DATABASE=${version.dbName}
+                    export DBUSER=postgres
+                    export ECCUBE_DB_USERNAME=postgres
+                    php eccube_install.php pgsql
+                    chown -R apache: /var/www/html/ec-cube-${version.name}
+                `);
 
             // EC-CUBEインストール
             yield execSsh('cube-php', cubeServer.ipAddress, [
-                `(cd /var/www/html; git clone --depth=1 -b ${branch} ${ECCUBE_REPOSITORY} ec-cube-${branch}; cd ec-cube-${branch}; export ROOT_URLPATH=/ec-cube-${branch}/html; php eccube_install.php pgsql; chown -R apache: /var/www/html/ec-cube-${branch};)`,
+                `(${installScrpt.replace(/^\s+/mg, '').replace(/\n/g, '; ')})`,
                 'systemctl restart httpd'
             ]);
 
             // ウォームアップ
-            yield ssh.execCommand(`ab -n 10 -c 1 http://192.168.0.2/ec-cube-${branch}/html/`);
+            yield ssh.execCommand(`ab -n 10 -c 1 http://192.168.0.2/ec-cube-${version.name}${version.path}`);
 
             // 5回測定
             let count = 5;
             for (let i=0; i<count;) {
-                let output = yield ssh.execCommand(`ab -n 100 -c 10 http://192.168.0.2/ec-cube-${branch}/html/`)
+                let output = yield ssh.execCommand(`ab -n 100 -c 10 http://192.168.0.2/ec-cube-${version.name}${version.path}`)
                 console.log(output.stdout);
                 // ERROR/WARNINGの場合はやり直す
                 if (output.stdout.match(/^(ERROR|WARNING): /m)) {
                     continue;
                 }
-                if (!results.has(branch)) {
-                    results.set(branch, { results: [] });
+                if (!results.has(version.name)) {
+                    results.set(version.name, { results: [] });
                 }
-                results.get(branch).results.push(parseFloat(output.stdout.match(/^Requests per second: +([0-9.]+).*$/m)[1]));
+                results.get(version.name).results.push(parseFloat(output.stdout.match(/^Requests per second: +([0-9.]+).*$/m)[1]));
                 i++;
             }
         }
@@ -428,7 +462,7 @@ co(function* () {
         console.log('#######################################################################');
         let chd = 't:0|' + [...results.values()].map((d) => d.mean).join('|');
         let chdl = ' |' + [...results.keys()].join('|');
-        let imgUrl = encodeURI(`https://image-charts.com/chart?cht=bhg&chs=400x150&chco=FFFFFF,F56991,FF9F80,FFC48C,D1F2A5,EFFAB4&chd=${chd}&chdl=${chdl}`);
+        let imgUrl = encodeURI(`https://image-charts.com/chart?cht=bhg&chs=400x150&chco=FFFFFF,F56991,FF9F80,FFC48C,D1F2A5,EFFAB4,F0E68C&chd=${chd}&chdl=${chdl}`);
         postToSlack(SLACK_CHANNEL, '```' + outputText + '```', {username:'本日のベンチマーク結果', attachments:[{fallback:outputText,image_url:imgUrl}]});
 
     } finally {
