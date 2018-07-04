@@ -6,7 +6,7 @@ const fs = require('fs');
 const randomstring = require('randomstring');
 const SlackClient = require('@slack/client').WebClient;
 
-const ARCHIVE_ID_CENTOS_7_4_64 = '112901258216'
+const ARCHIVE_ID_CENTOS_7_4_64 = '113000629234'
 const SSD_PLAN_ID = 4;
 const ZONE_ID = 31002; // 石狩第2
 const SERVER_PLAN_ID_1CORE_1G = 1001;
