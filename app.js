@@ -17,7 +17,7 @@ const SLACK_API_TOKEN = process.env.SLACK_API_TOKEN;
 const SLACK_CHANNEL = process.env.SLACK_CHANNEL;
 const ECCUBE_VERSIONS = [
     '3.0.15', '3.0.16', 'master',
-    { name: '3.n-alpha5', branch: '3.n-alpha5', path: '/', symfony:true},
+    { name: '3.n-alpha6', branch: '3.n-alpha6', path: '/', symfony:true},
     { name: 'sf', branch: 'experimental/sf', path: '/', symfony:true}
 ].reverse();
 
