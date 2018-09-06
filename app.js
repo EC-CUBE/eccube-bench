@@ -6,9 +6,9 @@ const fs = require('fs');
 const randomstring = require('randomstring');
 const SlackClient = require('@slack/client').WebClient;
 
-const ARCHIVE_ID_CENTOS_7_4_64 = '113000629234'
+const ARCHIVE_ID_CENTOS_7_4_64 = '113000629235'
 const SSD_PLAN_ID = 4;
-const ZONE_ID = 31002; // 石狩第2
+const ZONE_ID = 21001; // 東京第1
 const SERVER_PLAN_ID_1CORE_1G = 1001;
 const SERVER_PLAN_ID_2CORE_4G = 4002;
 const SERVER_PASSWORD = process.env.SERVER_PASSWORD || randomstring.generate(12);
@@ -28,6 +28,8 @@ const client = sacloud.createClient({
     debug: false
 });
 
+const zone = "tk1a";
+client.opt.apiRoot = `https://secure.sakura.ad.jp/cloud/zone/${zone}/api/cloud/1.1/`;
 
 /**
  * さくらのクラウドAPI呼び出し
