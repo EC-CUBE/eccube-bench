@@ -404,6 +404,7 @@ co(function* () {
                     echo APP_DEBUG=0 >> .env
                     echo ECCUBE_ROOT_URLPATH=/ec-cube-${version.name}${version.path} >> .env
                     echo DATABASE_URL=pgsql://postgres:password@127.0.0.1:5432/${version.dbName} >> .env
+                    rm -rf app/Plugin/*
                     composer install --dev --no-interaction -o
                     bin/console d:s:d --force
                     bin/console d:s:c
