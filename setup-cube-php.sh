@@ -4,7 +4,7 @@ yum update -y
 yum install epel-release
 rpm -Uvh http://rpms.famillecollet.com/enterprise/remi-release-7.rpm
 yum install -y httpd postgresql postgresql-server
-yum install --enablerepo=remi,remi-php71 -y php php-pdo php-pgsql php-xml php-pecl-apcu php-pecl-zendopcache php-mbstring php-intl php-zip
+yum install --enablerepo=remi,remi-php72 -y php php-pdo php-pgsql php-xml php-pecl-apcu php-pecl-zendopcache php-mbstring php-intl php-zip
 cp -p /etc/php.ini /etc/php.ini.bak
 echo 'date.timezone = Asia/Tokyo' >> /etc/php.ini
 php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
