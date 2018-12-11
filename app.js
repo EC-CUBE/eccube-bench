@@ -16,8 +16,9 @@ const ECCUBE_REPOSITORY = process.env.ECCUBE_REPOSITORY || 'https://github.com/E
 const SLACK_API_TOKEN = process.env.SLACK_API_TOKEN;
 const SLACK_CHANNEL = process.env.SLACK_CHANNEL;
 const ECCUBE_VERSIONS = [
-    '3.0.15', '3.0.16', 'master',
-    { name: '4.0-beta', branch: '4.0-beta', path: '/', symfony:true},
+    '3.0.15', '3.0.16', '3.0', '3.1',
+    { name: '4.0.0', branch: '4.0.0', path: '/', symfony:true},
+    { name: '4.0.1', branch: '4.0.1', path: '/', symfony:true},
     { name: '4.0', branch: '4.0', path: '/', symfony:true}
 ].reverse();
 
