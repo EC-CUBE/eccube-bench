@@ -6,7 +6,7 @@ const fs = require('fs');
 const randomstring = require('randomstring');
 const SlackClient = require('@slack/client').WebClient;
 
-const ARCHIVE_ID_CENTOS_7_4_64 = '113000629235'
+const ARCHIVE_ID_CENTOS_7_5_64 = '113001307003'
 const SSD_PLAN_ID = 4;
 const ZONE_ID = 21001; // 東京第1
 const SERVER_PLAN_ID_1CORE_1G = 1001;
@@ -16,8 +16,9 @@ const ECCUBE_REPOSITORY = process.env.ECCUBE_REPOSITORY || 'https://github.com/E
 const SLACK_API_TOKEN = process.env.SLACK_API_TOKEN;
 const SLACK_CHANNEL = process.env.SLACK_CHANNEL;
 const ECCUBE_VERSIONS = [
-    '3.0.15', '3.0.16', 'master',
-    { name: '4.0-beta', branch: '4.0-beta', path: '/', symfony:true},
+    '3.0.15', '3.0.16', '3.0', '3.1',
+    { name: '4.0.0', branch: '4.0.0', path: '/', symfony:true},
+    { name: '4.0.1', branch: '4.0.1', path: '/', symfony:true},
     { name: '4.0', branch: '4.0', path: '/', symfony:true}
 ].reverse();
 
@@ -122,7 +123,7 @@ function createDisk(serverId, serverName) {
                 Connection: 'virtio',
                 SizeMB: 20480,
                 SourceArchive: {
-                    ID: ARCHIVE_ID_CENTOS_7_4_64
+                    ID: ARCHIVE_ID_CENTOS_7_5_64
                 },
                 Plan: { ID: SSD_PLAN_ID }
             }
@@ -366,7 +367,7 @@ co(function* () {
         'path': 'archive'
     })
 
-    let found = archives.response.archives.filter(data => { return data.id == ARCHIVE_ID_CENTOS_7_4_64; });
+    let found = archives.response.archives.filter(data => { return data.id == ARCHIVE_ID_CENTOS_7_5_64; });
     if (!found.length) {
         throw new Error(`Archive ID not found.`);
     }
@@ -404,6 +405,7 @@ co(function* () {
                     echo APP_DEBUG=0 >> .env
                     echo ECCUBE_ROOT_URLPATH=/ec-cube-${version.name}${version.path} >> .env
                     echo DATABASE_URL=pgsql://postgres:password@127.0.0.1:5432/${version.dbName} >> .env
+                    rm -rf app/Plugin/*
                     composer install --dev --no-interaction -o
                     bin/console d:s:d --force
                     bin/console d:s:c
@@ -462,9 +464,9 @@ co(function* () {
         console.log('#######################################################################');
         console.log(outputText);
         console.log('#######################################################################');
-        let chd = 't:0|' + [...results.values()].map((d) => d.mean).join('|');
-        let chdl = ' |' + [...results.keys()].join('|');
-        let imgUrl = encodeURI(`https://image-charts.com/chart?cht=bhg&chs=400x150&chco=FFFFFF,F56991,FF9F80,FFC48C,D1F2A5,EFFAB4,F0E68C&chd=${chd}&chdl=${chdl}`);
+        let chd = 't:' + [...results.values()].map((d) => d.mean).join('|');
+        let chdl = [...results.keys()].join('|');
+        let imgUrl = encodeURI(`https://image-charts.com/chart?cht=bhg&chs=400x150&chco=F56991,FF9F80,FFC48C,D1F2A5,EFFAB4,F0E68C&chxt=y&chxs=0,000000,0,0,_&chd=${chd}&chdl=${chdl}`);
         postToSlack(SLACK_CHANNEL, '```' + outputText + '```', {username:'本日のベンチマーク結果', attachments:[{fallback:outputText,image_url:imgUrl}]});
 
     } finally {
