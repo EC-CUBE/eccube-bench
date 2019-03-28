@@ -464,9 +464,11 @@ co(function* () {
         console.log('#######################################################################');
         console.log(outputText);
         console.log('#######################################################################');
-        let chd = 't:' + [...results.values()].map((d) => d.mean).join('|');
+        let means = [...results.values()].map((d) => d.mean);
+        let maxScore = Math.max(...means);
+        let chd = 't:' + means.map(m => m / maxScore * 99).join('|');
         let chdl = [...results.keys()].join('|');
-        let imgUrl = encodeURI(`https://image-charts.com/chart?cht=bhg&chs=400x150&chco=F56991,FF9F80,FFC48C,D1F2A5,EFFAB4,F0E68C&chxt=y&chxs=0,000000,0,0,_&chd=${chd}&chdl=${chdl}`);
+        let imgUrl = encodeURI(`https://image-charts.com/chart?cht=bhg&chs=400x150&chco=F56991,FF9F80,FFC48C,D1F2A5,EFFAB4,F0E68C,D7EEFF&chxt=y&chxs=0,000000,0,0,_&chdlp=b&chd=${chd}&chdl=${chdl}`);
         postToSlack(SLACK_CHANNEL, '```' + outputText + '```', {username:'本日のベンチマーク結果', attachments:[{fallback:outputText,image_url:imgUrl}]});
 
     } finally {
